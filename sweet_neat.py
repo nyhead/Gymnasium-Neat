@@ -17,19 +17,21 @@ parser.add_argument('--nruns', type=int,default=5,required=False)
 parser.add_argument('--evolve', action='store_true',required=False)
 parser.add_argument('--show', action='store_true',required=False)
 parser.add_argument('--evaluate', action='store_true',required=False)
-parser.add_argument('--seeds', nargs="+", type=int,default=[42],required=False)
+parser.add_argument('--seeds', nargs="+", type=int,default=[42,123,456],required=False)
 args = parser.parse_args()
 
 runs_per_net = args.nruns
-net_type = 'feedforward'
+feedforward = True
 env_name = args.env
 
 env = gym.make(env_name)
-def eval_genome(genome, config,seed):
+def eval_genome(genome, config,seed=None):
     fitnesses = []
 
-    if net_type == 'feedforward':
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
+    if feedforward:
+        net = neat.nn.FeedForwardNetwork.create(genome,config)
+    else:
+        net = neat.nn.RecurrentNetwork.create(genome,config)
     for runs in range(runs_per_net):
         fitness = 0.0
         observation,_ = env.reset(seed=seed)
@@ -37,17 +39,17 @@ def eval_genome(genome, config,seed):
         steps = 0
         while not done:
             action =  net.activate(observation)
-            action = np.argmax(action) if len(action) > 1 else action
+            action = np.argmax(action) if len(action) > 1 else action     
             observation, reward, terminated, truncated, info = env.step(action)
             fitness += reward
             done = terminated or truncated
         fitnesses.append(fitness)
 
     return np.mean(fitnesses)
-def eval_genome_wrapper(genome, config, seed):
+def eval_genome_wrapper(genome, config, seed=None):
     return eval_genome(genome, config, seed)
 
-def run(save_winner=True,seed=None):
+def run(config,save_winner=True,seed=None):
 
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, args.conf)
@@ -72,23 +74,18 @@ def run(save_winner=True,seed=None):
     print(winner)
     return stats,winner
 
-def show_winner():
+def show_winner(config):
     with open(f'winner-{args.env}', 'rb') as f:
         c = pickle.load(f)
 
     print('Loaded genome:')
     print(c)
 
-    # Load the config file, which is assumed to live in
-    # the same directory as this script.
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, args.conf)
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                        neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                        config_path)
 
-    if net_type == 'feedforward':
+    if feedforward:
         net = neat.nn.FeedForwardNetwork.create(c, config)
+    else:
+        net = neat.nn.RecurrentNetwork.create(c, config)
 
 
     env = gym.make(args.env,render_mode="human")
@@ -107,17 +104,24 @@ def show_winner():
 
 
 if __name__ == '__main__':
-
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, args.conf)
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                        neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                        config_path)
     if args.evolve:
-        run()
+        seed = int.from_bytes(os.urandom(16), 'big')
+        random.seed(seed)
+        run(config,True,seed)
         env.close()
     if args.show:
-        show_winner()
+        show_winner(config)
     if args.evaluate:
         seeds = args.seeds
-        env = gym.make(env_name)
         for s in seeds:
             random.seed(s) 
             print(s)
-            stats,winner = run(False,s)
-            visualize.plot_stats(stats,view=True)
+            stats,winner = run(config,False,s)
+            # visualize.draw_net(config,winner,True)
+            visualize.plot_stats(stats,ylog=False,view=True,filename=f'plots/{env_name}/{env_name}_{s}.png')
+            # visualize.plot_species(stats, view=True)
