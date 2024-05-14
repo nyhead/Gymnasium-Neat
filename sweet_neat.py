@@ -16,7 +16,7 @@ parser.add_argument('--conf', type=str,default='configs/config-mountain-car-cont
 parser.add_argument('--nruns', type=int,default=5,required=False)
 parser.add_argument('--evolve', action='store_true',required=False)
 parser.add_argument('--show', action='store_true',required=False)
-parser.add_argument('--evaluate', action='store_true',required=False)
+parser.add_argument('--eval', action='store_true',required=False)
 parser.add_argument('--seeds', nargs="+", type=int,default=[42,123,456],required=False)
 args = parser.parse_args()
 
@@ -110,18 +110,19 @@ if __name__ == '__main__':
                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
                         config_path)
     if args.evolve:
-        seed = int.from_bytes(os.urandom(16), 'big')
-        random.seed(seed)
-        run(config,True,seed)
+        # seed = int.from_bytes(os.urandom(16), 'big')
+        # random.seed(seed)
+        run(config,True)
         env.close()
     if args.show:
         show_winner(config)
-    if args.evaluate:
+    if args.eval:
         seeds = args.seeds
         for s in seeds:
             random.seed(s) 
             print(s)
             stats,winner = run(config,False,s)
             # visualize.draw_net(config,winner,True)
+            os.makedirs(f'plots/{env_name}/', exist_ok=True)
             visualize.plot_stats(stats,ylog=False,view=True,filename=f'plots/{env_name}/{env_name}_{s}.png')
             # visualize.plot_species(stats, view=True)
